@@ -28,7 +28,9 @@ Ouvrir ensuite <http://127.0.0.1:4173>. L’application fonctionne entièrement 
   - **Bc** : files de deux roues (2,00 m), entraxe et garde paramétrables, coefficient `bc` ;
   - **Mc80 / Mc120** : convoi à deux chenilles, position optimisée.
 - **Optimisation transversale** au pas de 1 cm pour chaque chargeur, sur chacune des poutres.
-- **Cinq vues** : synthèse, ligne d’influence interactive, détail des chargements, tables de Massonnet (heatmap + export CSV), méthode et validation.
+- **θ = T personnalisable** dans l’onglet « Tables GM » (par exemple 1,07 entre 1,00 et 1,10) avec affichage du **tableau final interpolé** : lignes sources, interpolation sur `y`, passage `K₀ → Kα` en `√D`, puis interpolation finale sur `θ`.
+- **Décomposition des CRT** sous la forme explicite `η = K̄/n` puis `η × aᵢ` (AL : `a₁·LAl·η`, Bc : `bc·η`, qtr/Mc : `η`).
+- **Cinq vues** : synthèse, ligne d’influence interactive, détail des chargements, tables de Massonnet (heatmap + tableau final + export CSV), méthode et validation.
 - **Note de calcul** imprimable (A4) via « Imprimer / PDF ».
 
 ## Méthode
@@ -37,20 +39,23 @@ Ouvrir ensuite <http://127.0.0.1:4173>. L’application fonctionne entièrement 
    `Up = Ip / b₀`, `Ue = hd³ / 12`, `Jp = Kp / 2b₀`, `Je = Ue`.
 2. **Paramètres adimensionnels** :
    `T = (b / Lc) · (Up / Ue)^(1/4)` et `D = (Jp + Je) / (2√(Up·Ue))`, avec `b = n·b₀/2`.
-3. **Coefficients de plaque** :
-   `Kα = K₀ + (K₁ − K₀)·√D`, `K₀` sans torsion, `K₁` avec torsion maximale.
-4. **Répartition** :
-   - `AL` : `δ = a₁ · LAl · K̄ / n` ;
+3. **Trois interpolations successives** :
+   - sur `y` entre les deux lignes du tableau encadrant la poutre ;
+   - sur `α = D` via `Kα = K₀ + (K₁ − K₀)·√D` ;
+   - sur `θ = T` entre les deux tables encadrantes, avec `wθ = (θ − θ₁)/(θ₂ − θ₁)`.
+   Pour `θ = 1,07`, on prend ainsi `0,30·K(θ = 1,00) + 0,70·K(θ = 1,10)`.
+4. **Répartition** — le CRT de base est `η = K̄ / n`, puis :
+   - `AL` : `δ = a₁ · LAl · η` ;
    - `qtr` : `η = K̄tr / n` ;
-   - `Bc` : `δ = bc · K̄Bc / n`, avec `K̄Bc = ½ Σ K(e_i)` sur les quatre roues ;
-   - `Mc` : `δ = K̄Mc / n`, avec `K̄Mc = ¼ Σ K(e_i)` aux quatre bords de chenilles.
+   - `Bc` : `δ = bc · η`, avec `K̄Bc = ½ Σ K(e_i)` sur les quatre roues ;
+   - `Mc` : `η = K̄Mc / n`, avec `K̄Mc = ¼ Σ K(e_i)` aux quatre bords de chenilles.
 5. **Enveloppe** sur toutes les poutres, puis application aux sollicitations dans les combinaisons ELU / ELS.
 
 ### Tables de Massonnet
 
 Les tables `K₀`/`K₁` ne sont pas des images scannées : elles sont recalculées par résolution de l’équation de la plaque orthotrope (bords longitudinaux libres, appuis simples aux extrémités), pour la charge sinusoïdale transversale. La grille du cours est reproduite : `y/b = 0…1` et `e/b = −1…1` par pas de 0,25, `T` de 0,05 à 2,00.
 
-Le moteur a été contrôlé sur les valeurs de l’exercice : les **72 valeurs** de `K₀` et `K₁` aux tables `T = 1,10` et `T = 1,20` coïncident à **10⁻⁴** près. Les CRT de l’exemple sont reproduits avec un écart de quelques pour cent ; l’écart sur `Bc` (P1) provient de l’optimisation transversale, qui explore des positions plus défavorables que le placement manuel du cours.
+Le moteur a été contrôlé sur les valeurs de l’exercice : les **72 valeurs** de `K₀` et `K₁` aux tables `T = 1,10` et `T = 1,20` coïncident à **10⁻⁴** près. Le tableau final à `θ = 1,15` reproduit également les valeurs du cours (`K = 0,0394 … 4,1164`). Les CRT de l’exemple sont reproduits avec un écart de quelques pour cent ; l’écart sur `Bc` (P1) provient de l’optimisation transversale, qui explore des positions plus défavorables que le placement manuel du cours.
 
 ## Structure
 

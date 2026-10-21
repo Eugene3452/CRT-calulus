@@ -2,7 +2,7 @@
    Chaque fonction reçoit { result, state, validation } et retourne du HTML. */
 
 import { nf, nf0, formatSigned, beamSectionSVG, chrSVG, placementBar } from './charts.js';
-import { K0, K1, standardTable, influencePoints, T_GRID, E_GRID } from './engine.js';
+import { K0, K1, standardTable, influencePoints, interpolationDetail, T_GRID, E_GRID } from './engine.js';
 import { icon } from './icons.js';
 
 const esc = (s) =>
@@ -144,6 +144,38 @@ export function viewSynthese({ result, state }) {
     })
     .join('');
 
+  const crtRows = ['AL', 'qtr', 'Bc', 'Mc']
+    .map((key) => {
+      const c = selected.loads[key]?.best;
+      if (!c) return '';
+      const meta = LOAD_LABELS[key];
+      const factor = key === 'AL' ? c.a1 : key === 'Bc' ? c.bc : 1;
+      const factorLabel = key === 'AL' ? 'a₁' : key === 'Bc' ? 'bc' : '1,00';
+      const extra =
+        key === 'AL'
+          ? `LAl = ${nf(c.LAl)} m`
+          : key === 'qtr'
+            ? `Ltr = ${nf(base.Ltr)} m`
+            : key === 'Bc'
+              ? `${nf0(c.files)} file${c.files > 1 ? 's' : ''}`
+              : `Lmc = ${nf(c.Lmc)} m`;
+      const relation =
+        key === 'AL'
+          ? 'a₁ · η · LAl'
+          : key === 'Bc'
+            ? 'bc · η'
+            : `η = K̄<sub>${key === 'qtr' ? 'tr' : 'mc'}</sub>/n`;
+      return `<tr>
+        <td><span class="load-dot ${meta.cls}"></span><b>${meta.short}</b><span class="sub">${meta.name}</span></td>
+        <td class="num strong">${nf(c.eta, 4)}</td>
+        <td class="num">${nf(factor, 2)} <span class="sub">${factorLabel}</span></td>
+        <td>${extra}</td>
+        <td class="num strong">${nf(loadValue(selected, key), 4)}</td>
+        <td class="mono small">${relation}</td>
+      </tr>`;
+    })
+    .join('');
+
   const envRows = ['AL', 'qtr', 'Bc', 'Mc']
     .map((key) => {
       const e = env[key];
@@ -177,6 +209,17 @@ export function viewSynthese({ result, state }) {
     ${beamStrip(result, selected.index)}
     ${sectionTitle('Coefficients de répartition', `Poutre ${selected.label} · y = ${nf(selected.y)} m (y/b = ${nf(selected.yb, 2)})`, `<button type="button" class="btn btn-outline btn-sm" data-action="goto" data-view="influence">${icon('chart')} Ligne d’influence</button>`)}
     <div class="result-grid">${cards}</div>
+
+    ${sectionTitle('Coefficients CRT — forme η × aᵢ', `Poutre ${selected.label} · le CRT de base η = K̄/n est multiplié par les facteurs réglementaires du chargeur`)}
+    <article class="card crt-card">
+      <div class="table-scroll">
+        <table class="data-table crt-table">
+          <thead><tr><th>Charge</th><th class="num">η = K̄/n</th><th class="num">Facteur aᵢ</th><th>Grandeur</th><th class="num">Coefficient retenu</th><th>Relation</th></tr></thead>
+          <tbody>${crtRows}</tbody>
+        </table>
+      </div>
+      <div class="table-note">AL : δ = a₁ · LAl · η &nbsp;·&nbsp; qtr : η = K̄<sub>tr</sub>/n &nbsp;·&nbsp; Bc : δ = bc · η &nbsp;·&nbsp; Mc : η = K̄<sub>Mc</sub>/n. Les coefficients retenus sont ceux de la poutre sélectionnée.</div>
+    </article>
 
     <div class="two-col mt-14">
       <div class="stack">
@@ -650,6 +693,86 @@ function mcCard(result, beam) {
 /* Tables de Massonnet                                                 */
 /* ------------------------------------------------------------------ */
 
+function interpCard(base, beam, tSel) {
+  const d = interpolationDetail(base, beam.y, tSel, base.D);
+  const t1 = nf(d.t1, 2);
+  const t2 = nf(d.t2, 2);
+  const thetaLabel =
+    d.t1 === d.t2
+      ? `θ = ${t1}`
+      : `θ = ${nf(d.tSel, 3)} entre θ₁ = ${t1} et θ₂ = ${t2}`;
+  const tWeight = d.t1 === d.t2 ? 'table unique' : `poids θ₁ = ${nf(1 - d.w, 3)} · θ₂ = ${nf(d.w, 3)}`;
+  const y1 = nf(d.y1, 2);
+  const y2 = nf(d.y2, 2);
+  const yWeight = `poids y₁ = ${nf(1 - d.wy, 3)} · y₂ = ${nf(d.wy, 3)}`;
+
+  const head = E_GRID.map(
+    (er) => `<th class="num">${formatSigned(er, 2)}<small>${formatSigned(er * base.b, 2)} m</small></th>`
+  ).join('');
+  const row = (label, values, cls = '') =>
+    `<tr class="${cls}"><th>${label}</th>${values.map((v) => `<td class="num">${nf(v, 4)}</td>`).join('')}</tr>`;
+
+  const rows = [
+    row(`K₀ — θ₁ = ${t1}`, d.s1.k0y, 'interp-source'),
+    d.t1 !== d.t2 ? row(`K₀ — θ₂ = ${t2}`, d.sources[1].k0y, 'interp-source') : '',
+    row('K₀ — après y et θ', d.k0, 'interp-soft'),
+    row(`K₁ — θ₁ = ${t1}`, d.s1.k1y, 'interp-source'),
+    d.t1 !== d.t2 ? row(`K₁ — θ₂ = ${t2}`, d.sources[1].k1y, 'interp-source') : '',
+    row('K₁ — après y et θ', d.k1, 'interp-soft'),
+    row(`Kα — θ₁ = ${t1}`, d.s1.kalpha, 'interp-source'),
+    d.t1 !== d.t2 ? row(`Kα — θ₂ = ${t2}`, d.sources[1].kalpha, 'interp-source') : '',
+    row(`Kθ = Kα final — ${thetaLabel}`, d.kalpha, 'interp-key'),
+    row('ηθ = Kθ / n', d.eta, 'interp-eta'),
+  ].join('');
+
+  const sourceRows = d.sources
+    .flatMap((s, i) => [
+      [`θ${i ? '₂' : '₁'} = ${nf(s.t, 2)} · K₀(y/b = ${y1})`, s.k0Table[d.yi]],
+      [`θ${i ? '₂' : '₁'} = ${nf(s.t, 2)} · K₀(y/b = ${y2})`, s.k0Table[d.yi + 1]],
+      [`θ${i ? '₂' : '₁'} = ${nf(s.t, 2)} · K₁(y/b = ${y1})`, s.k1Table[d.yi]],
+      [`θ${i ? '₂' : '₁'} = ${nf(s.t, 2)} · K₁(y/b = ${y2})`, s.k1Table[d.yi + 1]],
+    ])
+    .map(([label, values]) => row(label, values, 'interp-source-row'))
+    .join('');
+
+  return `<article class="card interp-card">
+    <header class="card-head">
+      <div><h2>Tableau final interpolé — ${thetaLabel}</h2><p>Poutre ${beam.label} · y/b = ${nf(beam.yb, 2)} · ${base.mode === 'tables' ? 'méthode des tableaux' : 'contrôle du mode exact'}</p></div>
+      <span class="pill">3 interpolations</span>
+    </header>
+    <div class="interp-body">
+      <div class="interp-flow">
+        <div class="interp-step"><span>1 · y</span><b>y/b = ${nf(beam.yb, 2)}</b><small>${y1} → ${y2} · ${yWeight}</small></div>
+        <div class="interp-arrow">→</div>
+        <div class="interp-step"><span>2 · α = D</span><b>√D = ${nf(d.sqrtD, 3)}</b><small>Kα = K₀ + (K₁ − K₀)·√D</small></div>
+        <div class="interp-arrow">→</div>
+        <div class="interp-step"><span>3 · θ = T</span><b>${t1} → ${t2}</b><small>${tWeight}</small></div>
+      </div>
+      <div class="formula interp-formula">
+        K<sub>θ</sub>(e) = (1 − w<sub>θ</sub>)·K<sub>θ₁</sub>(e) + w<sub>θ</sub>·K<sub>θ₂</sub>(e)
+        ${d.t1 === d.t2 ? '' : ` = ${nf(1 - d.w, 3)}·K<sub>${t1}</sub> + ${nf(d.w, 3)}·K<sub>${t2}</sub>`}
+      </div>
+      <div class="table-scroll">
+        <table class="data-table interp-table">
+          <thead><tr><th>Grandeur</th>${head}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <details class="interp-details">
+        <summary>Détail des lignes sources utilisées pour l’interpolation sur y</summary>
+        <p>Les valeurs ci-dessous sont les lignes brutes des tables de Massonnet aux deux ordonnées encadrant y/b = ${nf(beam.yb, 2)}. L’interpolation sur y est linéaire : K(y) = (1 − w<sub>y</sub>)·K(y₁) + w<sub>y</sub>·K(y₂).</p>
+        <div class="table-scroll">
+          <table class="data-table compact interp-source-table">
+            <thead><tr><th>Table / ligne</th>${head}</tr></thead>
+            <tbody>${sourceRows}</tbody>
+          </table>
+        </div>
+      </details>
+      <div class="table-note">ηθ = Kθ/n est le CRT de base de la poutre pour l’excentricité e. Le tableau est calculé dans l’ordre du cours : y → √D → θ. La colonne θ finale est la seule à utiliser pour tracer la ligne d’influence en mode « tableaux ».</div>
+    </div>
+  </article>`;
+}
+
 export function viewTables({ result, state }) {
   const base = result.base;
   const beam = result.beams[state.beam] || result.beams[0];
@@ -683,11 +806,9 @@ export function viewTables({ result, state }) {
     })
     .join('');
 
-  const tOptions =
-    `<option value="project">T du projet — ${nf(base.T, 3)}</option>` +
-    T_GRID.map((t) => `<option value="${t}" ${Math.abs(t - tSel) < 1e-9 && state.gmT !== 'project' ? 'selected' : ''}>T = ${nf(t, 2)}</option>`).join('');
-
+  const tGridOptions = T_GRID.map((t) => `<option value="${t}"></option>`).join('');
   const interpolated = influencePoints(base, beam.y);
+  const tInterp = interpolationDetail(base, beam.y, tSel, base.D);
 
   return `
     ${beamStrip(result, beam.index)}
@@ -707,8 +828,12 @@ export function viewTables({ result, state }) {
           </div>
         </div>
         <div class="control">
-          <label for="gmT">Paramètre T</label>
-          <select id="gmT">${tOptions}</select>
+          <label for="gmT">θ = T voulu</label>
+          <div class="theta-control">
+            <input id="gmT" type="number" min="${T_GRID[0]}" max="${T_GRID[T_GRID.length - 1]}" step="0.001" value="${String(+tSel.toFixed(4))}" list="gmTGrid" aria-label="Valeur de θ (T) à interpoler">
+            <datalist id="gmTGrid">${tGridOptions}</datalist>
+            <button type="button" class="btn btn-outline btn-sm" data-action="gm-project">Projet ${nf(base.T, 2)}</button>
+          </div>
         </div>
         <div class="spacer"></div>
         <div class="table-meta">${which === 'K0' ? 'K₀(y, e)' : 'K₁(y, e)'} · b = ${nf(base.b, 3)} m</div>
@@ -723,8 +848,10 @@ export function viewTables({ result, state }) {
         <span>faible</span><span class="heat-scale"></span><span>élevé</span>
         <span class="muted" style="margin-left:auto">Les valeurs négatives apparaissent en rouge.</span>
       </div>
-      <div class="table-note">Table exacte calculée à T = ${nf(tSel, 2)} (solution de plaque reproduisant les tableaux de Massonnet). Abscisse e/b en tête, e en mètres en sous-titre. Ces valeurs sont indépendantes du mode de calcul choisi.</div>
+      <div class="table-note">Table exacte calculée à θ = ${nf(tSel, 3)} (solution de plaque reproduisant les tableaux de Massonnet). Abscisse e/b en tête, e en mètres en sous-titre. Le tableau final interpolé ci-dessous montre la construction effective du cours.</div>
     </article>
+
+    ${interpCard(base, beam, tSel)}
 
     <div class="two-col mt-14">
       <article class="card">
@@ -745,7 +872,7 @@ export function viewTables({ result, state }) {
             <div class="chain-arrow">→</div>
             <div class="chain-step"><span>2 · √D</span><b>√D = ${nf(Math.sqrt(base.D), 3)}</b><small>D = ${nf(base.D, 3)}</small></div>
             <div class="chain-arrow">→</div>
-            <div class="chain-step"><span>3 · T</span><b>${base.tableBase ? `${nf(base.tableBase.t1, 2)} → ${nf(base.tableBase.t2, 2)}` : 'hors grille'}</b><small>${base.tableBase ? `poids ${nf(base.tableBase.w, 2)}` : 'solution exacte'}</small></div>
+            <div class="chain-step"><span>3 · θ</span><b>${tInterp.t1 === tInterp.t2 ? nf(tInterp.t1, 2) : `${nf(tInterp.t1, 2)} → ${nf(tInterp.t2, 2)}`}</b><small>${tInterp.t1 === tInterp.t2 ? 'table unique' : `poids ${nf(tInterp.w, 3)}`}</small></div>
           </div>
           <div class="formula">Kα = K₀ + (K₁ − K₀) · √D</div>
           <div class="value-list value-list-flat">
@@ -756,7 +883,7 @@ export function viewTables({ result, state }) {
             <div class="value-pill"><span>K au bord e = b</span><b>${nf(interpolated[8].k, 3)}</b></div>
             <div class="value-pill"><span>K au bord e = −b</span><b>${nf(interpolated[0].k, 3)}</b></div>
           </div>
-          <p class="small muted mt-14">La table est d’abord interpolée sur y, puis sur D via √D, enfin sur T entre les deux valeurs encadrantes. Le mode exact court-circuite ces trois interpolations.</p>
+          <p class="small muted mt-14">La table est d’abord interpolée sur y, puis sur D via √D, enfin sur θ = T entre les deux tables encadrantes. Le détail complet et le tableau final sont donnés ci-dessus.</p>
         </div>
       </article>
     </div>`;
@@ -885,19 +1012,19 @@ export function viewMethode({ result, validation }) {
     },
     {
       n: '03',
-      title: 'Coefficients K₀, K₁ puis Kα',
-      body: 'K₀ correspond à une poutre sans torsion, K₁ à une poutre infiniment raide en torsion. Le passage de l’un à l’autre se fait en racine de D. Les tableaux sont interpolés sur y, puis √D, puis T.',
-      formula: 'Kα = K₀ + (K₁ − K₀) · √D',
+      title: 'Trois interpolations : y, √D puis θ',
+      body: 'K₀ correspond à une poutre sans torsion, K₁ à une poutre infiniment raide en torsion. Pour une poutre d’ordonnée y et un θ = T voulu, on interpole d’abord chaque ligne du tableau sur y, puis on passe de K₀ à K₁ en √D, et enfin on interpole entre les deux tables de θ encadrantes. Exemple : θ = 1,07 entre 1,00 et 1,10 donne wθ = 0,70, soit Kθ = 0,30·K1,00 + 0,70·K1,10.',
+      formula: 'K<sub>θ</sub>(y) = (1−w<sub>y</sub>)·K<sub>θ</sub>(y₁) + w<sub>y</sub>·K<sub>θ</sub>(y₂) &nbsp;·&nbsp; K<sub>α,θ</sub> = K<sub>0,θ</sub> + (K<sub>1,θ</sub> − K<sub>0,θ</sub>)·√D &nbsp;·&nbsp; K<sub>θ</sub> = (1−w<sub>θ</sub>)·K<sub>θ1</sub> + w<sub>θ</sub>·K<sub>θ2</sub>',
       values: base.tableBase
-        ? [`T₁ = ${nf(base.tableBase.t1, 2)}`, `T₂ = ${nf(base.tableBase.t2, 2)}`, `poids = ${nf(base.tableBase.w, 3)}`, `√D = ${nf(Math.sqrt(base.D), 3)}`]
-        : [`mode exact`, `T = ${nf(base.T, 3)}`, `√D = ${nf(Math.sqrt(base.D), 3)}`],
+        ? [`θ₁ = ${nf(base.tableBase.t1, 2)}`, `θ₂ = ${nf(base.tableBase.t2, 2)}`, `wθ = ${nf(base.tableBase.w, 3)}`, `√D = ${nf(Math.sqrt(base.D), 3)}`]
+        : [`mode exact`, `θ = T = ${nf(base.T, 3)}`, `√D = ${nf(Math.sqrt(base.D), 3)}`],
     },
     {
       n: '04',
       title: 'Charges et coefficients de répartition',
       body: 'Pour chaque chargeur, la position transversale la plus défavorable est recherchée. Les K lus sur la ligne d’influence sont moyennés sur la largeur chargée, puis divisés par le nombre de poutres.',
       formula:
-        'AL : δ = a₁·LAl·K̄/n &nbsp;·&nbsp; qtr : η = K̄<sub>tr</sub>/n &nbsp;·&nbsp; Bc : δ = bc·K̄<sub>Bc</sub>/n &nbsp;·&nbsp; Mc : δ = K̄<sub>Mc</sub>/n',
+        'η = K̄/n &nbsp;·&nbsp; AL : δ = a₁·LAl·η &nbsp;·&nbsp; qtr : η = K̄<sub>tr</sub>/n &nbsp;·&nbsp; Bc : δ = bc·η &nbsp;·&nbsp; Mc : η = K̄<sub>Mc</sub>/n',
       values: ['AL = ' + nf(loadValue(beam, 'AL'), 3), 'qtr = ' + nf(loadValue(beam, 'qtr'), 3), 'Bc = ' + nf(loadValue(beam, 'Bc'), 3), 'Mc = ' + nf(loadValue(beam, 'Mc'), 3)],
     },
     {
@@ -910,7 +1037,7 @@ export function viewMethode({ result, validation }) {
   ];
 
   return `
-    <div class="alert alert-info">${icon('info')}<div><b>Méthode de Guyon-Massonnet.</b> La dalle-poutres est assimilée à une plaque orthotrope équivalente, appuyée sur ses deux extrémités et libre sur ses rives longitudinales. Les coefficients K₀ et K₁ sont les solutions de cette plaque pour les deux cas limites de torsion ; Kα s’en déduit par interpolation en √D.</div></div>
+    <div class="alert alert-info">${icon('info')}<div><b>Méthode de Guyon-Massonnet.</b> La dalle-poutres est assimilée à une plaque orthotrope équivalente, appuyée sur ses deux extrémités et libre sur ses rives longitudinales. K₀ et K₁ sont les tables limites de torsion. Le CRT est obtenu par trois interpolations successives : y, puis √D, puis θ = T. Le tableau final correspondant au θ voulu est visible dans l’onglet « Tables GM ».</div></div>
 
     ${sectionTitle('Démarche de calcul', 'Les cinq étapes appliquées par le moteur')}
     <div class="steps">

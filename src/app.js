@@ -740,6 +740,13 @@ function bindEvents() {
       return;
     }
 
+    if (action === 'gm-project') {
+      state.gmT = 'project';
+      renderView();
+      saveState();
+      return;
+    }
+
     if (action === 'csv') {
       exportCsv(el.dataset.which || state.gmWhich, el.dataset.t || state.gmT);
     }
@@ -747,7 +754,10 @@ function bindEvents() {
 
   $('viewRoot').addEventListener('change', (ev) => {
     if (ev.target.id === 'gmT') {
-      state.gmT = ev.target.value;
+      const v = num(ev.target.value);
+      state.gmT = Number.isFinite(v)
+        ? String(Math.max(T_GRID[0], Math.min(T_GRID[T_GRID.length - 1], v)))
+        : 'project';
       renderView();
       saveState();
     }

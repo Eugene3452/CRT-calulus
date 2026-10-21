@@ -787,6 +787,73 @@ export function standardTable(T, b, which = 'K0') {
   );
 }
 
+/** Interpolation linéaire d'une ligne de tableau sur l'ordonnée y/b. */
+function interpTableY(table, yr) {
+  const q = Math.max(0, Math.min(1, yr)) * 4;
+  const i = Math.max(0, Math.min(3, Math.floor(q)));
+  const t = q - i;
+  return table[i].map((v, j) => v * (1 - t) + table[i + 1][j] * t);
+}
+
+/**
+ * Détail reproductible des trois interpolations du cours pour un θ voulu :
+ *   1) y (entre deux lignes du tableau),
+ *   2) α = D (en √D, entre K0 et K1),
+ *   3) θ = T (entre les deux tables encadrantes).
+ * Les tableaux sont ceux de Massonnet, reconstitués à θ1 et θ2.
+ */
+export function interpolationDetail(base, y, tSel = base.T, D = base.D) {
+  const b = base.b;
+  const bracket = bracketT(tSel);
+  const { t1, t2, w } = bracket;
+  const yr = Math.max(0, Math.min(1, Math.abs(y) / b));
+  const yq = yr * 4;
+  const yi = Math.max(0, Math.min(3, Math.floor(yq)));
+  const wy = yq - yi;
+  const y1 = Y_GRID[yi];
+  const y2 = Y_GRID[yi + 1];
+  const sqrtD = Math.sqrt(Math.max(0, Math.min(1, D)));
+
+  const build = (t) => {
+    const k0Table = standardTable(t, b, 'K0');
+    const k1Table = standardTable(t, b, 'K1');
+    const k0y = interpTableY(k0Table, yr);
+    const k1y = interpTableY(k1Table, yr);
+    const kalpha = k0y.map((k0, j) => k0 + (k1y[j] - k0) * sqrtD);
+    return { t, k0Table, k1Table, k0y, k1y, kalpha };
+  };
+
+  const s1 = build(t1);
+  const s2 = t1 === t2 ? null : build(t2);
+  const mix = (a, c) => (s2 ? a.map((v, j) => v * (1 - w) + c[j] * w) : a.slice());
+  const k0 = mix(s1.k0y, s2?.k0y || s1.k0y);
+  const k1 = mix(s1.k1y, s2?.k1y || s1.k1y);
+  const kalpha = mix(s1.kalpha, s2?.kalpha || s1.kalpha);
+
+  return {
+    tSel,
+    t1,
+    t2,
+    w,
+    b,
+    yr,
+    y1,
+    y2,
+    yi,
+    wy,
+    D,
+    sqrtD,
+    s1,
+    s2,
+    sources: s2 ? [s1, s2] : [s1],
+    k0,
+    k1,
+    kalpha,
+    eta: kalpha.map((v) => v / base.n),
+    e: E_GRID.map((er) => er * b),
+  };
+}
+
 /** Valeurs K0/K1/Kalpha aux points remarquables pour une poutre. */
 export function influencePoints(base, y, D = base.D) {
   return E_GRID.map((er) => {
