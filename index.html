@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>CRT · Guyon-Massonnet — Calcul des ponts à poutres</title>
+  <meta name="description" content="Calcul des coefficients de répartition transversale (CRT) d'un pont à poutres par la méthode de Guyon-Massonnet : AL, qtr, Bc et Mc." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d9488'/%3E%3Cpath d='M10 42h44M16 42V28m32 14V28M10 28h44M22 28v-7m20 7v-7' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Paramètres du projet">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48"><path d="M6 32h36M10 32V20m28 12V20M6 20h36M16 20v-7m16 7v-7" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><circle cx="24" cy="13" r="2.4" fill="currentColor"/></svg>
+        </div>
+        <div class="brand-text">
+          <strong>CRT<span>·</span>GM</strong>
+          <small>Guyon-Massonnet</small>
+        </div>
+        <span class="brand-version">v1.0</span>
+      </div>
+
+      <form id="params" class="side-form" autocomplete="off" novalidate>
+        <div class="side-scroll">
+          <section class="side-section">
+            <div class="side-section-head">
+              <span class="step-dot">01</span>
+              <div><h2>Tablier</h2><p>Géométrie transversale</p></div>
+            </div>
+            <div class="field-grid">
+              <label class="field">
+                <span>Portée de calcul <em>Lc · m</em></span>
+                <input id="L" name="L" type="number" min="0.1" step="0.01" inputmode="decimal" />
+              </label>
+              <label class="field">
+                <span>Nombre de poutres <em>n</em></span>
+                <input id="n" name="n" type="number" min="2" max="20" step="1" inputmode="numeric" />
+              </label>
+              <label class="field">
+                <span>Entraxe des poutres <em>b₀ · m</em></span>
+                <input id="b0" name="b0" type="number" min="0.1" step="0.01" inputmode="decimal" />
+              </label>
+              <label class="field">
+                <span>Largeur trottoir <em>Ltr · m</em></span>
+                <input id="Ltr" name="Ltr" type="number" min="0" step="0.01" inputmode="decimal" />
+              </label>
+            </div>
+            <div class="derived-strip" id="geoStrip"></div>
+          </section>
+
+          <section class="side-section">
+            <div class="side-section-head">
+              <span class="step-dot">02</span>
+              <div><h2>Section de poutre</h2><p>Poutre + table de compression</p></div>
+            </div>
+            <div class="field-grid">
+              <label class="field">
+                <span>Largeur d’âme <em>ba · m</em></span>
+                <input id="ba" name="ba" type="number" min="0.05" step="0.01" inputmode="decimal" />
+              </label>
+              <label class="field">
+                <span>Hauteur de poutre <em>hp · m</em></span>
+                <input id="hp" name="hp" type="number" min="0.1" step="0.01" inputmode="decimal" />
+              </label>
+              <label class="field">
+                <span>Épaisseur hourdis <em>hd · m</em></span>
+                <input id="hd" name="hd" type="number" min="0.05" step="0.01" inputmode="decimal" />
+              </label>
+              <label class="field">
+                <span>Largeur de table <em>bf · m</em></span>
+                <input id="bf" name="bf" type="number" min="0.1" step="0.01" inputmode="decimal" />
+              </label>
+            </div>
+            <div class="mini-stats" id="sectionStats"></div>
+          </section>
+
+          <section class="side-section">
+            <div class="side-section-head">
+              <span class="step-dot">03</span>
+              <div><h2>Chargements</h2><p>Véhicules et coefficients</p></div>
+            </div>
+            <div class="field-grid">
+              <label class="field">
+                <span>Véhicule Mc <em>type</em></span>
+                <select id="mcType" name="mcType">
+                  <option value="Mc80">Mc80 — 72 t</option>
+                  <option value="Mc120">Mc120 — 110 t</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Largeur chenille <em>LMc · m</em></span>
+                <input id="mcTrack" name="mcTrack" type="number" min="0.1" step="0.01" inputmode="decimal" />
+              </label>
+              <label class="field">
+                <span>Écart entre chenilles <em>m</em></span>
+                <input id="mcGap" name="mcGap" type="number" min="0.1" step="0.01" inputmode="decimal" />
+              </label>
+              <label class="field">
+                <span>Classe du pont <em>auto / forcée</em></span>
+                <select id="bridgeClass" name="bridgeClass">
+                  <option value="auto">Automatique</option>
+                  <option value="1">1ʳᵉ classe</option>
+                  <option value="2">2ᵉ classe</option>
+                  <option value="3">3ᵉ classe</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <details class="side-advanced">
+            <summary>Options de calcul</summary>
+            <div class="field-grid">
+              <label class="field field-wide">
+                <span>Mode de calcul</span>
+                <select id="mode" name="mode">
+                  <option value="tables">Interpolation des tableaux (cours)</option>
+                  <option value="exact">Solution exacte de la plaque</option>
+                </select>
+              </label>
+              <label class="field field-wide">
+                <span>Torsion de l’âme</span>
+                <select id="torsionMode" name="torsionMode">
+                  <option value="example">Convention de l’exemple — k(2a/b)</option>
+                  <option value="standard">Rapport géométrique — k(a/b)</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Espace entre files Bc <em>m</em></span>
+                <input id="bcGap" name="bcGap" type="number" min="0" step="0.05" inputmode="decimal" />
+              </label>
+              <label class="field">
+                <span>Garde Bc / bord <em>m</em></span>
+                <input id="edgeClear" name="edgeClear" type="number" min="0" step="0.05" inputmode="decimal" />
+              </label>
+            </div>
+            <p class="side-hint">Le mode « tableaux » reproduit la triple interpolation du cours (y → √D → T). Le mode exact résout directement la plaque orthotrope.</p>
+          </details>
+        </div>
+
+        <div class="side-actions">
+          <button type="button" id="btnExample" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Charger l’exemple
+          </button>
+          <button type="button" id="btnReset" class="btn btn-ghost">Réinitialiser</button>
+        </div>
+      </form>
+
+      <div class="side-foot">
+        <span class="live-dot"></span>
+        <span>Calculs locaux, sans serveur</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-title">
+          <div class="eyebrow"><span class="live-dot"></span> Note de calcul en direct <span class="sep">·</span> NF EN 1991-2</div>
+          <h1>Répartition transversale des charges</h1>
+          <p>Ponts à poutres multiples — méthode de Guyon-Massonnet</p>
+        </div>
+        <div class="topbar-actions">
+          <span id="statusChip" class="status-chip">Calcul à jour</span>
+          <button type="button" id="btnPrint" class="btn btn-outline" title="Imprimer la note de calcul">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Imprimer / PDF
+          </button>
+        </div>
+      </header>
+
+      <div class="print-header">
+        <div>
+          <strong>Note de calcul — CRT par la méthode de Guyon-Massonnet</strong>
+          <span>Pont à poutres · charges AL, qtr, Bc et Mc</span>
+        </div>
+        <span id="printDate"></span>
+      </div>
+
+      <div id="errorBanner" class="error-banner" hidden></div>
+
+      <section id="kpiGrid" class="kpi-grid" aria-label="Indicateurs du projet"></section>
+
+      <section class="hero-grid">
+        <article class="card hero-section">
+          <header class="card-head">
+            <div>
+              <h2>Coupe transversale</h2>
+              <p id="sectionSubtitle">Tablier et positions des poutres</p>
+            </div>
+            <span class="pill" id="sectionPill"></span>
+          </header>
+          <div id="crossSection" class="cross-wrap"></div>
+        </article>
+        <article class="card hero-summary" id="heroSummary"></article>
+      </section>
+
+      <nav class="tabs" id="tabs" aria-label="Vues de la note de calcul">
+        <button type="button" data-view="synthese" class="tab is-active">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+          Synthèse
+        </button>
+        <button type="button" data-view="influence" class="tab">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M5 20V9m5 11V5m5 15v-8m5 8V7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span class="tab-label-long">Ligne d’influence</span><span class="tab-label-short">Influence</span>
+        </button>
+        <button type="button" data-view="charges" class="tab">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17h18M5 17v-4h3l2-4h6l2 4h3v4M9 17v-3h6v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="tab-label-long">Chargements</span><span class="tab-label-short">Charges</span>
+        </button>
+        <button type="button" data-view="tables" class="tab">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM4 9h16M4 15h16M9 4v16M15 4v16" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span class="tab-label-long">Tables GM</span><span class="tab-label-short">Tables</span>
+        </button>
+        <button type="button" data-view="methode" class="tab">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5zM8 9h8M8 13h8M8 17h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Méthode
+        </button>
+      </nav>
+
+      <div id="viewRoot" class="view-root"></div>
+
+      <footer class="app-footer">
+        <span>Outil de prédimensionnement — les résultats doivent être vérifiés par un ingénieur.</span>
+        <span>Guyon 1946 · Massonnet 1950 · Massonnet-Bareš 1966</span>
+      </footer>
+    </main>
+  </div>
+
+  <a href="#kpiGrid" class="mobile-jump no-print" aria-label="Aller aux résultats">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m0 0 6-6m-6 6-6-6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Résultats
+  </a>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

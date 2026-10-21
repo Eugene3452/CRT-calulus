@@ -1,0 +1,13 @@
+{
+  "name": "crt-guyon-massonnet",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Calcul des coefficients de répartition transversale d'un pont à poutres par la méthode de Guyon-Massonnet (AL, qtr, Bc, Mc).",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs"
+  },
+  "keywords": ["pont", "CRT", "Guyon", "Massonnet", "génie civil"],
+  "license": "MIT"
+}
